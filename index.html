@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOTA — Research Notebook</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-0: #080808;
+      --bg-1: #111111;
+      --bg-2: #181818;
+      --border: #242424;
+      --border-light: #303030;
+      --text-primary: #e8e6e0;
+      --text-secondary: #9a9690;
+      --text-muted: #505050;
+      --accent: #5b9cf6;
+      --accent-hover: #7bb2ff;
+      --accent-dim: rgba(91,156,246,0.08);
+      --green: #4ade80;
+      --green-glow: rgba(74,222,128,0.45);
+      --red: #f87171;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'SF Mono','Fira Code','Cascadia Code',Consolas,monospace;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-0);
+      color: var(--text-primary);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* HEADER */
+    .header {
+      display: flex; align-items: center; height: 44px; padding: 0 16px;
+      background: var(--bg-1); border-bottom: 1px solid var(--border);
+      gap: 14px; flex-shrink: 0; z-index: 100;
+    }
+    .logo { font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: 4px; }
+    .logo-sep { width: 1px; height: 18px; background: var(--border-light); }
+    .tagline { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); letter-spacing: 1px; }
+    .api-section { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .api-label { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); letter-spacing: 1px; }
+    .api-input {
+      background: var(--bg-0); border: 1px solid var(--border); color: var(--text-secondary);
+      padding: 4px 10px; font-size: 11px; font-family: var(--font-mono); width: 290px;
+      border-radius: 2px; outline: none; transition: border-color 0.2s;
+    }
+    .api-input:focus { border-color: var(--accent); color: var(--text-primary); }
+    .api-input::placeholder { color: var(--text-muted); }
+    .connect-btn {
+      background: transparent; border: 1px solid var(--border-light); color: var(--text-secondary);
+      padding: 4px 10px; font-size: 10px; font-family: var(--font-mono); cursor: pointer;
+      border-radius: 2px; letter-spacing: 1px; transition: all 0.2s;
+    }
+    .connect-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .api-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #3a3a3a;
+      transition: all 0.4s ease; flex-shrink: 0;
+    }
+    .api-dot.connected {
+      background: var(--green);
+      box-shadow: 0 0 0 2px rgba(74,222,128,0.2), 0 0 10px var(--green-glow);
+      animation: glow-pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes glow-pulse {
+      0%,100% { box-shadow: 0 0 0 2px rgba(74,222,128,0.2), 0 0 8px var(--green-glow); }
+      50%      { box-shadow: 0 0 0 4px rgba(74,222,128,0.1), 0 0 18px var(--green-glow); }
+    }
+
+    /* WORKSPACE */
+    .workspace { display: flex; flex: 1; overflow: hidden; }
+
+    /* SIDEBAR */
+    .sidebar {
+      width: 216px; min-width: 216px; background: var(--bg-1);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden;
+    }
+    .sb-head { padding: 11px 14px 9px; border-bottom: 1px solid var(--border); }
+    .sb-title { font-size: 9px; font-family: var(--font-mono); letter-spacing: 2.5px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 9px; }
+    .upload-zone {
+      border: 1px dashed var(--border-light); border-radius: 3px; padding: 13px 8px;
+      text-align: center; cursor: pointer; transition: all 0.2s; position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+    .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .upload-icon { font-size: 18px; margin-bottom: 4px; display: block; opacity: 0.5; }
+    .upload-hint { font-size: 10px; color: var(--text-muted); line-height: 1.5; }
+
+    .docs-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+    .docs-list::-webkit-scrollbar { width: 2px; }
+    .docs-list::-webkit-scrollbar-thumb { background: var(--border-light); }
+
+    .doc-item {
+      display: flex; align-items: center; padding: 7px 14px; cursor: pointer;
+      gap: 8px; transition: background 0.12s; border-left: 2px solid transparent;
+    }
+    .doc-item:hover { background: var(--bg-2); }
+    .doc-item.active { background: var(--accent-dim); border-left-color: var(--accent); padding-left: 12px; }
+    .doc-icon { font-size: 13px; flex-shrink: 0; color: var(--text-muted); }
+    .doc-item.active .doc-icon { color: var(--accent); }
+    .doc-info { flex: 1; min-width: 0; }
+    .doc-name { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); }
+    .doc-item.active .doc-name { color: var(--text-primary); }
+    .doc-meta { font-size: 9px; color: var(--text-muted); font-family: var(--font-mono); }
+    .doc-del {
+      opacity: 0; background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 11px; padding: 2px; transition: all 0.15s; line-height: 1;
+    }
+    .doc-item:hover .doc-del { opacity: 1; }
+    .doc-del:hover { color: var(--red); }
+    .sb-foot { padding: 8px 14px; border-top: 1px solid var(--border); font-size: 9px; color: var(--text-muted); font-family: var(--font-mono); }
+
+    /* VIEWER */
+    .viewer { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-0); }
+    .view-tabs {
+      display: flex; align-items: center; padding: 0 14px; height: 35px;
+      border-bottom: 1px solid var(--border); background: var(--bg-1); gap: 2px; flex-shrink: 0;
+    }
+    .view-tab {
+      padding: 3px 12px; font-size: 10px; font-family: var(--font-mono); letter-spacing: 1px;
+      cursor: pointer; border: 1px solid transparent; border-radius: 2px;
+      color: var(--text-muted); transition: all 0.12s; background: none;
+    }
+    .view-tab:hover { color: var(--text-secondary); }
+    .view-tab.active { border-color: var(--border-light); color: var(--text-primary); background: var(--bg-2); }
+
+    .viewer-toolbar {
+      display: flex; align-items: center; padding: 5px 14px;
+      border-bottom: 1px solid var(--border); background: var(--bg-1); gap: 6px; flex-shrink: 0;
+    }
+    .tb-btn {
+      background: none; border: 1px solid var(--border); color: var(--text-muted);
+      padding: 3px 9px; font-size: 10px; font-family: var(--font-mono); cursor: pointer;
+      border-radius: 2px; letter-spacing: 0.5px; transition: all 0.12s;
+    }
+    .tb-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .tb-btn:disabled { opacity: 0.35; cursor: default; border-color: var(--border); color: var(--text-muted); }
+    .page-nav { display: flex; align-items: center; gap: 5px; margin-left: auto; font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); }
+    .page-nav button {
+      background: none; border: 1px solid var(--border); color: var(--text-secondary);
+      width: 22px; height: 22px; cursor: pointer; border-radius: 2px;
+      display: flex; align-items: center; justify-content: center; font-size: 11px; transition: all 0.12s;
+    }
+    .page-nav button:hover { border-color: var(--accent); color: var(--accent); }
+    .page-nav button:disabled { opacity: 0.25; cursor: default; }
+
+    .viewer-body {
+      flex: 1; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 20px;
+    }
+    .viewer-body::-webkit-scrollbar { width: 4px; }
+    .viewer-body::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; width: 100%; gap: 10px; color: var(--text-muted); }
+    .empty-glyph { font-size: 44px; opacity: 0.2; }
+    .empty-head { font-size: 12px; font-family: var(--font-mono); letter-spacing: 2px; }
+    .empty-sub { font-size: 11px; text-align: center; max-width: 280px; line-height: 1.7; }
+
+    #pdf-canvas { background: #fff; box-shadow: 0 4px 32px rgba(0,0,0,0.6); max-width: 100%; }
+
+    /* MINDMAP */
+    .mm-controls {
+      display: flex; align-items: center; padding: 0 14px; height: 35px;
+      border-bottom: 1px solid var(--border); background: var(--bg-1); gap: 6px; flex-shrink: 0;
+    }
+    .mm-status { font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); }
+    .mm-body { flex: 1; position: relative; overflow: hidden; }
+    #mm-canvas { display: block; cursor: grab; }
+    #mm-canvas:active { cursor: grabbing; }
+    .gen-overlay {
+      position: absolute; inset: 0; background: rgba(8,8,8,0.88);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    }
+    .gen-spinner { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border-light); border-top-color: var(--accent); animation: spin 0.75s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .gen-label { font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); letter-spacing: 1px; }
+
+    /* CHAT */
+    .chat-panel {
+      width: 356px; min-width: 300px; background: var(--bg-1);
+      border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden;
+    }
+    .chat-head { padding: 9px 13px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+    .chat-title { font-size: 10px; font-family: var(--font-mono); letter-spacing: 2px; color: var(--text-muted); flex: 1; }
+    .doc-chip {
+      font-size: 9px; font-family: var(--font-mono); color: var(--accent);
+      background: var(--accent-dim); border: 1px solid rgba(91,156,246,0.2);
+      padding: 2px 7px; border-radius: 10px;
+      max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .chat-clr { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 11px; font-family: var(--font-mono); transition: color 0.15s; padding: 2px; }
+    .chat-clr:hover { color: var(--red); }
+
+    .chat-msgs { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .chat-msgs::-webkit-scrollbar { width: 2px; }
+    .chat-msgs::-webkit-scrollbar-thumb { background: var(--border-light); }
+
+    .msg { display: flex; flex-direction: column; gap: 3px; }
+    .msg-role { font-size: 9px; font-family: var(--font-mono); letter-spacing: 1.5px; color: var(--text-muted); }
+    .msg.user .msg-role { color: var(--accent); }
+    .msg-body {
+      font-size: 12px; line-height: 1.65; padding: 9px 11px; border-radius: 2px;
+      border-left: 2px solid var(--border-light); background: var(--bg-2); color: var(--text-secondary);
+    }
+    .msg.user .msg-body { background: rgba(91,156,246,0.06); border-left-color: var(--accent); color: var(--text-primary); }
+    .msg-body p { margin-bottom: 6px; }
+    .msg-body p:last-child { margin-bottom: 0; }
+
+    .citation {
+      display: inline-block; font-size: 9px; font-family: var(--font-mono);
+      background: rgba(91,156,246,0.12); color: var(--accent);
+      border: 1px solid rgba(91,156,246,0.25); padding: 1px 5px; border-radius: 2px;
+      cursor: pointer; margin: 0 1px; vertical-align: middle; transition: all 0.12s;
+    }
+    .citation:hover { background: rgba(91,156,246,0.25); }
+
+    .src-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+    .src-chip {
+      font-size: 9px; font-family: var(--font-mono); background: var(--bg-0);
+      border: 1px solid var(--border-light); color: var(--text-muted);
+      padding: 2px 7px; border-radius: 10px; cursor: pointer; transition: all 0.12s;
+    }
+    .src-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+    .typing { display: flex; gap: 4px; padding: 8px 11px; align-items: center; }
+    .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text-muted); animation: bounce 1.1s infinite; }
+    .dot:nth-child(2) { animation-delay: 0.18s; }
+    .dot:nth-child(3) { animation-delay: 0.36s; }
+    @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
+
+    .chat-input-area { padding: 9px; border-top: 1px solid var(--border); flex-shrink: 0; }
+    .quick-row { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 7px; }
+    .qp {
+      font-size: 9px; font-family: var(--font-mono); background: none;
+      border: 1px solid var(--border); color: var(--text-muted);
+      padding: 3px 7px; border-radius: 10px; cursor: pointer; transition: all 0.12s;
+    }
+    .qp:hover { border-color: var(--accent); color: var(--accent); }
+    .input-row { display: flex; gap: 5px; }
+    .chat-ta {
+      flex: 1; background: var(--bg-0); border: 1px solid var(--border); color: var(--text-primary);
+      padding: 7px 9px; font-size: 12px; font-family: var(--font-sans); border-radius: 2px;
+      resize: none; outline: none; min-height: 34px; max-height: 96px; line-height: 1.5;
+      transition: border-color 0.2s;
+    }
+    .chat-ta:focus { border-color: var(--accent); }
+    .chat-ta::placeholder { color: var(--text-muted); }
+    .send-btn {
+      background: var(--accent); border: none; color: #fff; padding: 7px 13px;
+      font-size: 10px; font-family: var(--font-mono); cursor: pointer; border-radius: 2px;
+      letter-spacing: 1px; transition: all 0.15s; white-space: nowrap;
+    }
+    .send-btn:hover { background: var(--accent-hover); }
+    .send-btn:disabled { opacity: 0.35; cursor: default; }
+
+    /* TOAST */
+    .toast {
+      position: fixed; bottom: 18px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--bg-2); border: 1px solid var(--border-light);
+      color: var(--text-primary); padding: 7px 16px; border-radius: 3px;
+      font-size: 11px; font-family: var(--font-mono); z-index: 999;
+      transition: transform 0.28s cubic-bezier(.4,0,.2,1); pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <span class="logo">NOTA</span>
+    <div class="logo-sep"></div>
+    <span class="tagline">research notebook</span>
+    <div class="api-section">
+      <span class="api-label">GEMINI KEY</span>
+      <input type="password" class="api-input" id="apiKeyInput" placeholder="AIza… paste your Gemini API key">
+      <button class="connect-btn" id="connectBtn" onclick="connectAPI()">CONNECT</button>
+      <div class="api-dot" id="apiDot" title="Not connected"></div>
+    </div>
+  </header>
+
+  <!-- WORKSPACE -->
+  <div class="workspace">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sb-head">
+        <div class="sb-title">Library</div>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" accept=".pdf" multiple>
+          <span class="upload-icon">⊕</span>
+          <div class="upload-hint">Drop PDFs here<br>or click to browse</div>
+        </div>
+      </div>
+      <div class="docs-list" id="docsList"></div>
+      <div class="sb-foot" id="sbStats">No documents loaded</div>
+    </aside>
+
+    <!-- CENTER VIEWER -->
+    <main class="viewer">
+      <div class="view-tabs">
+        <button class="view-tab active" id="tab-pdf" onclick="switchTab('pdf')">PDF VIEWER</button>
+        <button class="view-tab" id="tab-mm" onclick="switchTab('mm')">MIND MAP</button>
+      </div>
+
+      <!-- PDF view -->
+      <div id="pdfView" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="viewer-toolbar">
+          <button class="tb-btn" onclick="zoomIn()">+ ZOOM</button>
+          <button class="tb-btn" onclick="zoomOut()">− ZOOM</button>
+          <button class="tb-btn" onclick="fitPage()">FIT</button>
+          <div class="page-nav">
+            <button id="prevBtn" onclick="prevPage()" disabled>‹</button>
+            <span id="pageInfo">— / —</span>
+            <button id="nextBtn" onclick="nextPage()" disabled>›</button>
+          </div>
+        </div>
+        <div class="viewer-body" id="viewerBody">
+          <div class="empty-state" id="emptyState">
+            <div class="empty-glyph">∅</div>
+            <div class="empty-head">No Document</div>
+            <div class="empty-sub">Upload a PDF from the sidebar to begin your research session</div>
+          </div>
+          <canvas id="pdf-canvas" style="display:none;"></canvas>
+        </div>
+      </div>
+
+      <!-- Mind Map view -->
+      <div id="mmView" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="mm-controls">
+          <button class="tb-btn" id="genBtn" onclick="generateMindMap()">⟳ GENERATE</button>
+          <button class="tb-btn" onclick="clearMM()">✕ CLEAR</button>
+          <span class="mm-status" id="mmStatus">Select a document and click Generate</span>
+          <div style="margin-left:auto;display:flex;gap:5px;">
+            <button class="tb-btn" onclick="zoomMM(1.2)">+</button>
+            <button class="tb-btn" onclick="zoomMM(0.8)">−</button>
+          </div>
+        </div>
+        <div class="mm-body" id="mmBody">
+          <canvas id="mm-canvas"></canvas>
+        </div>
+      </div>
+    </main>
+
+    <!-- CHAT -->
+    <aside class="chat-panel">
+      <div class="chat-head">
+        <span class="chat-title">ASSISTANT</span>
+        <span class="doc-chip" id="docChip" style="display:none;"></span>
+        <button class="chat-clr" onclick="clearChat()" title="Clear chat">✕</button>
+      </div>
+      <div class="chat-msgs" id="chatMsgs">
+        <div class="msg assistant">
+          <div class="msg-role">NOTA</div>
+          <div class="msg-body">Upload a PDF and ask me anything. I will answer based on the document and cite page numbers you can click to navigate directly.</div>
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <div class="quick-row">
+          <button class="qp" onclick="qp('Summarize this document in detail')">Summarize</button>
+          <button class="qp" onclick="qp('What are the key findings?')">Key findings</button>
+          <button class="qp" onclick="qp('What methodology was used?')">Methodology</button>
+          <button class="qp" onclick="qp('List the main conclusions')">Conclusions</button>
+          <button class="qp" onclick="qp('What problem does this paper solve?')">Problem</button>
+        </div>
+        <div class="input-row">
+          <textarea class="chat-ta" id="chatTA" placeholder="Ask about the document…" rows="1"
+            onkeydown="handleKey(event)"></textarea>
+          <button class="send-btn" id="sendBtn" onclick="sendMsg()">SEND</button>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const S = {
+  docs: [], active: null, page: 1, zoom: 1,
+  apiKey: '', history: [],
+  mmData: null, mmScale: 1, mmOX: 0, mmOY: 0, tab: 'pdf'
+};
+
+/* ─── API ─── */
+async function connectAPI() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) { toast('Enter your Gemini API key first'); return; }
+  const btn = document.getElementById('connectBtn');
+  btn.textContent = '…'; btn.disabled = true;
+  try {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents:[{parts:[{text:'ping'}]}], generationConfig:{maxOutputTokens:4} })
+      }
+    );
+    if (r.ok || r.status === 400) {
+      S.apiKey = key;
+      const dot = document.getElementById('apiDot');
+      dot.className = 'api-dot connected'; dot.title = 'Connected';
+      toast('Gemini API connected ✓');
+    } else {
+      const e = await r.json();
+      toast('Key error: ' + (e.error?.message || r.status));
+      document.getElementById('apiDot').className = 'api-dot';
+    }
+  } catch(e) { toast('Error: ' + e.message); }
+  btn.textContent = 'CONNECT'; btn.disabled = false;
+}
+document.getElementById('apiKeyInput').addEventListener('keydown', e => { if(e.key==='Enter') connectAPI(); });
+
+/* ─── UPLOAD ─── */
+const uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag-over');
+  [...e.dataTransfer.files].filter(f => f.type==='application/pdf').forEach(loadPDF);
+});
+document.getElementById('fileInput').addEventListener('change', e => {
+  [...e.target.files].forEach(loadPDF); e.target.value = '';
+});
+
+async function loadPDF(file) {
+  const id = Date.now() + '-' + Math.random().toString(36).slice(2);
+  const doc = { id, name: file.name, pages: 0, text: [], pdfDoc: null };
+  S.docs.push(doc); renderList();
+  toast(`Loading "${file.name}"…`);
+  try {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    doc.pdfDoc = pdf; doc.pages = pdf.numPages;
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const pg = await pdf.getPage(i);
+      const tc = await pg.getTextContent();
+      doc.text.push({ page: i, content: tc.items.map(x=>x.str).join(' ').trim() });
+    }
+    renderList();
+    if (!S.active) setActive(doc);
+    toast(`Loaded: ${file.name} (${doc.pages} pages)`);
+  } catch(e) {
+    toast('Error loading PDF: ' + e.message);
+    S.docs = S.docs.filter(d => d.id !== id); renderList();
+  }
+}
+
+function renderList() {
+  const el = document.getElementById('docsList');
+  el.innerHTML = '';
+  S.docs.forEach(doc => {
+    const d = document.createElement('div');
+    d.className = 'doc-item' + (S.active?.id === doc.id ? ' active' : '');
+    d.innerHTML = `<span class="doc-icon">⬡</span>
+<div class="doc-info">
+  <div class="doc-name" title="${esc(doc.name)}">${esc(doc.name)}</div>
+  <div class="doc-meta">${doc.pages ? doc.pages+' pages' : 'loading…'}</div>
+</div>
+<button class="doc-del" onclick="delDoc('${doc.id}',event)">✕</button>`;
+    d.addEventListener('click', () => setActive(doc));
+    el.appendChild(d);
+  });
+  const total = S.docs.reduce((s,d) => s+(d.pages||0), 0);
+  document.getElementById('sbStats').textContent =
+    S.docs.length ? `${S.docs.length} doc${S.docs.length>1?'s':''} · ${total} pages` : 'No documents loaded';
+}
+
+function delDoc(id, e) {
+  e.stopPropagation();
+  S.docs = S.docs.filter(d => d.id !== id);
+  if (S.active?.id === id) { S.active = S.docs[0]||null; S.active ? setActive(S.active) : clearViewer(); }
+  renderList();
+}
+
+function setActive(doc) {
+  S.active = doc; S.page = 1; S.zoom = 1; renderList();
+  const chip = document.getElementById('docChip');
+  chip.textContent = doc.name.replace(/\.pdf$/i,''); chip.style.display = 'block';
+  if (doc.pdfDoc && S.tab==='pdf') renderPage(1);
+}
+
+function clearViewer() {
+  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('pdf-canvas').style.display = 'none';
+  document.getElementById('pageInfo').textContent = '— / —';
+  document.getElementById('prevBtn').disabled = true;
+  document.getElementById('nextBtn').disabled = true;
+  document.getElementById('docChip').style.display = 'none';
+}
+
+/* ─── PDF RENDER ─── */
+async function renderPage(n) {
+  if (!S.active?.pdfDoc) return;
+  S.page = Math.max(1, Math.min(n, S.active.pages));
+  const pg = await S.active.pdfDoc.getPage(S.page);
+  const vp = pg.getViewport({ scale: S.zoom * 1.5 });
+  const canvas = document.getElementById('pdf-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = vp.width; canvas.height = vp.height;
+  document.getElementById('emptyState').style.display = 'none';
+  canvas.style.display = 'block';
+  await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+  document.getElementById('pageInfo').textContent = `${S.page} / ${S.active.pages}`;
+  document.getElementById('prevBtn').disabled = S.page <= 1;
+  document.getElementById('nextBtn').disabled = S.page >= S.active.pages;
+}
+function prevPage() { renderPage(S.page-1); }
+function nextPage() { renderPage(S.page+1); }
+function zoomIn()  { S.zoom = Math.min(3, S.zoom+0.25); renderPage(S.page); }
+function zoomOut() { S.zoom = Math.max(0.25, S.zoom-0.25); renderPage(S.page); }
+function fitPage() { S.zoom = 1; renderPage(S.page); }
+function goToPage(n) { switchTab('pdf'); renderPage(n); document.getElementById('viewerBody').scrollTop=0; }
+
+/* ─── TAB ─── */
+function switchTab(t) {
+  S.tab = t;
+  document.getElementById('tab-pdf').className = 'view-tab'+(t==='pdf'?' active':'');
+  document.getElementById('tab-mm').className  = 'view-tab'+(t==='mm' ?' active':'');
+  document.getElementById('pdfView').style.display = t==='pdf' ? 'flex' : 'none';
+  document.getElementById('mmView').style.display  = t==='mm'  ? 'flex' : 'none';
+  if (t==='pdf' && S.active) renderPage(S.page);
+  if (t==='mm') { resizeMMCanvas(); if(S.mmData) drawMM(S.mmData); }
+}
+
+/* ─── CHAT ─── */
+async function sendMsg() {
+  const ta = document.getElementById('chatTA');
+  const q = ta.value.trim();
+  if (!q) return;
+  if (!S.apiKey) { toast('Connect your Gemini API key first'); return; }
+  if (!S.active) { toast('Select a document first'); return; }
+  ta.value = ''; ta.style.height = 'auto';
+  appendMsg('user', q);
+  document.getElementById('sendBtn').disabled = true;
+  const typEl = appendTyping();
+  try {
+    const docCtx = buildCtx(S.active);
+    const sys = `You are a meticulous research assistant. You have the full text of a document organized by page number.
+
+RULES:
+1. Answer ONLY from the document content below.
+2. ALWAYS cite page numbers inline using [p.N] format (e.g. [p.3]).
+3. If info spans multiple pages, cite all: [p.2][p.5].
+4. If something is not in the document, say so clearly.
+5. Be concise, precise, academic in tone.
+
+Document: "${S.active.name}"
+
+${docCtx}`;
+
+    const msgs = [
+      ...S.history.slice(-8).map(m => ({ role: m.r, parts: [{text:m.t}] })),
+      { role: 'user', parts: [{text: q}] }
+    ];
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${S.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{text: sys}] },
+          contents: msgs,
+          generationConfig: { temperature: 0.25, maxOutputTokens: 2048 }
+        })
+      }
+    );
+    if (!r.ok) { const e = await r.json(); throw new Error(e.error?.message||'API error '+r.status); }
+    const data = await r.json();
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '(no response)';
+    typEl.remove();
+    S.history.push({r:'user',t:q}); S.history.push({r:'model',t:reply});
+    appendAsstMsg(reply);
+  } catch(e) {
+    typEl.remove(); appendMsg('assistant', 'Error: '+e.message);
+  }
+  document.getElementById('sendBtn').disabled = false;
+}
+
+function buildCtx(doc) {
+  let out='', chars=0, max=80000;
+  for (const p of doc.text) {
+    const line = `\n[Page ${p.page}]\n${p.content}\n`;
+    if (chars+line.length > max) break;
+    out += line; chars += line.length;
+  }
+  return out;
+}
+
+function appendMsg(role, text) {
+  const c = document.getElementById('chatMsgs');
+  const el = document.createElement('div');
+  el.className = 'msg '+role;
+  el.innerHTML = `<div class="msg-role">${role==='user'?'YOU':'NOTA'}</div>
+<div class="msg-body">${esc(text)}</div>`;
+  c.appendChild(el); c.scrollTop=c.scrollHeight; return el;
+}
+
+function appendAsstMsg(text) {
+  const c = document.getElementById('chatMsgs');
+  const el = document.createElement('div');
+  el.className = 'msg assistant';
+  const {html, pages} = parseResp(text);
+  el.innerHTML = `<div class="msg-role">NOTA</div>
+<div class="msg-body">${html}</div>
+${pages.length ? `<div class="src-row">${pages.map(p=>`<span class="src-chip" onclick="goToPage(${p})">p.${p}</span>`).join('')}</div>` : ''}`;
+  c.appendChild(el); c.scrollTop=c.scrollHeight; return el;
+}
+
+function parseResp(text) {
+  const pages = new Set();
+  let h = esc(text);
+  h = h.replace(/\[p\.(\d+)\]/g,      (_,n)=>{ pages.add(+n); return `<span class="citation" onclick="goToPage(${n})">[p.${n}]</span>`; });
+  h = h.replace(/\[(?:page|p) (\d+)\]/gi, (_,n)=>{ pages.add(+n); return `<span class="citation" onclick="goToPage(${n})">[p.${n}]</span>`; });
+  h = h.replace(/\(p\. ?(\d+)\)/g,    (_,n)=>{ pages.add(+n); return `<span class="citation" onclick="goToPage(${n})">[p.${n}]</span>`; });
+  h = `<p>${h.replace(/\n\n+/g,'</p><p>').replace(/\n/g,'<br>')}</p>`;
+  return { html: h, pages: [...pages].sort((a,b)=>a-b) };
+}
+
+function appendTyping() {
+  const c = document.getElementById('chatMsgs');
+  const el = document.createElement('div');
+  el.className = 'msg assistant';
+  el.innerHTML = `<div class="msg-role">NOTA</div>
+<div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+  c.appendChild(el); c.scrollTop=c.scrollHeight; return el;
+}
+
+function clearChat() {
+  S.history = [];
+  document.getElementById('chatMsgs').innerHTML = `<div class="msg assistant">
+<div class="msg-role">NOTA</div>
+<div class="msg-body">Chat cleared. Ready for your questions.</div></div>`;
+}
+function qp(t) { document.getElementById('chatTA').value=t; sendMsg(); }
+function handleKey(e) { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMsg(); } }
+document.getElementById('chatTA').addEventListener('input', function(){
+  this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,96)+'px';
+});
+
+/* ─── MIND MAP ─── */
+const mmCanvas = document.getElementById('mm-canvas');
+const mmCtx = mmCanvas.getContext('2d');
+let mmDrag=false, mmDS={x:0,y:0};
+
+function resizeMMCanvas() {
+  const b = document.getElementById('mmBody');
+  mmCanvas.width=b.clientWidth; mmCanvas.height=b.clientHeight;
+}
+
+async function generateMindMap() {
+  if (!S.active) { toast('Select a document first'); return; }
+  if (!S.apiKey)  { toast('Connect API key first'); return; }
+  const btn=document.getElementById('genBtn'), st=document.getElementById('mmStatus');
+  btn.disabled=true; st.textContent='Generating…';
+  const body=document.getElementById('mmBody');
+  const ov=document.createElement('div'); ov.className='gen-overlay';
+  ov.innerHTML='<div class="gen-spinner"></div><div class="gen-label">ANALYSING DOCUMENT</div>';
+  body.appendChild(ov);
+  try {
+    const ctx = S.active.text.slice(0,40).map(p=>`[Page ${p.page}]: ${p.content}`).join('\n').slice(0,35000);
+    const prompt = `Analyse this research document and return a mind map as JSON ONLY — no markdown, no explanation, just raw JSON.
+
+Schema:
+{"title":"<main topic max 5 words>","children":[{"label":"<branch 2-4 words>","color":"<hex>","children":[{"label":"<leaf 2-3 words>","page":<integer or null>}]}]}
+
+Rules: 5-8 branches, 2-4 leaves each, distinct hex colors per branch, real page numbers.
+
+Document:\n${ctx}`;
+
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${S.apiKey}`,
+      { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.2,maxOutputTokens:2048}}) }
+    );
+    if (!r.ok) throw new Error('API error');
+    const data = await r.json();
+    let reply = data.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const m = reply.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('Could not parse JSON from response');
+    const mmData = JSON.parse(m[0]);
+    S.mmData=mmData; S.mmScale=1; S.mmOX=0; S.mmOY=0;
+    ov.remove(); resizeMMCanvas(); drawMM(mmData);
+    st.textContent = `"${S.active.name.replace(/\.pdf$/i,'')}"`;
+  } catch(e) {
+    ov.remove(); st.textContent='Error: '+e.message; toast('Mind map failed: '+e.message);
+  }
+  btn.disabled=false;
+}
+
+function clearMM() {
+  S.mmData=null; mmCtx.clearRect(0,0,mmCanvas.width,mmCanvas.height);
+  document.getElementById('mmStatus').textContent='Select a document and click Generate';
+}
+function zoomMM(f) { S.mmScale=Math.max(0.2,Math.min(4,S.mmScale*f)); if(S.mmData) drawMM(S.mmData); }
+
+function drawMM(data) {
+  const W=mmCanvas.width, H=mmCanvas.height;
+  mmCtx.clearRect(0,0,W,H);
+  // subtle grid
+  mmCtx.save(); mmCtx.strokeStyle='rgba(255,255,255,0.02)'; mmCtx.lineWidth=0.5;
+  for(let x=0;x<W;x+=40){mmCtx.beginPath();mmCtx.moveTo(x,0);mmCtx.lineTo(x,H);mmCtx.stroke();}
+  for(let y=0;y<H;y+=40){mmCtx.beginPath();mmCtx.moveTo(0,y);mmCtx.lineTo(W,y);mmCtx.stroke();}
+  mmCtx.restore();
+
+  mmCtx.save();
+  mmCtx.translate(W/2+S.mmOX, H/2+S.mmOY);
+  mmCtx.scale(S.mmScale, S.mmScale);
+
+  const branches = data.children||[];
+  const R=190;
+  branches.forEach((br,i) => {
+    const angle = (i/branches.length)*Math.PI*2 - Math.PI/2;
+    const bx=Math.cos(angle)*R, by=Math.sin(angle)*R;
+    const col = br.color||defCol(i);
+    drawLine(0,0,bx,by,col,2);
+    drawBox(bx,by,br.label,col,false,11);
+    const leaves=br.children||[];
+    const spread=Math.PI/3.2, leafR=125;
+    leaves.forEach((lf,j) => {
+      const la = angle - spread/2 + (j/Math.max(leaves.length-1,1))*spread;
+      const lx=bx+Math.cos(la)*leafR, ly=by+Math.sin(la)*leafR;
+      drawLine(bx,by,lx,ly,col,1);
+      drawLeaf(lx,ly,lf.label,lf.page,col);
+    });
+  });
+  drawBox(0,0,data.title,'#5b9cf6',true,13);
+  mmCtx.restore();
+}
+
+function drawLine(x1,y1,x2,y2,col,w) {
+  const mx=(x1+x2)/2-(y2-y1)*0.15, my=(y1+y2)/2+(x2-x1)*0.15;
+  mmCtx.beginPath(); mmCtx.moveTo(x1,y1); mmCtx.quadraticCurveTo(mx,my,x2,y2);
+  mmCtx.strokeStyle=col; mmCtx.lineWidth=w; mmCtx.globalAlpha=0.5; mmCtx.stroke(); mmCtx.globalAlpha=1;
+}
+function drawBox(x,y,text,col,isCenter,fs) {
+  mmCtx.font=`${isCenter?600:500} ${fs}px -apple-system,sans-serif`;
+  const tw=mmCtx.measureText(text).width, pw=isCenter?18:13, ph=isCenter?13:9;
+  const bw=tw+pw*2, bh=fs+ph*2;
+  rrect(x-bw/2,y-bh/2,bw,bh,3);
+  mmCtx.fillStyle=isCenter?'#0d1529':'#131313'; mmCtx.fill();
+  mmCtx.strokeStyle=col; mmCtx.lineWidth=isCenter?1.5:0.8; mmCtx.stroke();
+  mmCtx.fillStyle=isCenter?'#e8e6e0':col;
+  mmCtx.textAlign='center'; mmCtx.textBaseline='middle';
+  mmCtx.font=`${isCenter?600:400} ${fs}px -apple-system,sans-serif`;
+  mmCtx.fillText(text,x,y);
+}
+function drawLeaf(x,y,text,page,col) {
+  const fs=9.5; mmCtx.font=`400 ${fs}px -apple-system,sans-serif`;
+  let t=text;
+  if(mmCtx.measureText(t).width>86){while(mmCtx.measureText(t+'…').width>86&&t.length>2)t=t.slice(0,-1);t+='…';}
+  const tw=mmCtx.measureText(t).width, bw=Math.max(tw+16,46), bh=page?30:22;
+  rrect(x-bw/2,y-bh/2,bw,bh,3);
+  mmCtx.fillStyle='#0d0d0d'; mmCtx.fill();
+  mmCtx.strokeStyle=col; mmCtx.lineWidth=0.5; mmCtx.stroke();
+  mmCtx.fillStyle='#9a9690'; mmCtx.textAlign='center'; mmCtx.textBaseline='middle';
+  mmCtx.font=`400 ${fs}px -apple-system,sans-serif`;
+  mmCtx.fillText(t,x,page?y-5:y);
+  if(page){mmCtx.font='400 8px monospace'; mmCtx.fillStyle=col; mmCtx.fillText('p.'+page,x,y+8);}
+}
+function rrect(x,y,w,h,r){
+  mmCtx.beginPath();
+  mmCtx.moveTo(x+r,y); mmCtx.lineTo(x+w-r,y); mmCtx.arcTo(x+w,y,x+w,y+r,r);
+  mmCtx.lineTo(x+w,y+h-r); mmCtx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  mmCtx.lineTo(x+r,y+h); mmCtx.arcTo(x,y+h,x,y+h-r,r);
+  mmCtx.lineTo(x,y+r); mmCtx.arcTo(x,y,x+r,y,r); mmCtx.closePath();
+}
+function defCol(i){return['#5b9cf6','#4ade80','#fbbf24','#f87171','#a78bfa','#22d3ee','#fb923c','#ec4899'][i%8];}
+
+mmCanvas.addEventListener('mousedown',e=>{mmDrag=true;mmDS={x:e.clientX-S.mmOX,y:e.clientY-S.mmOY};});
+mmCanvas.addEventListener('mousemove',e=>{if(!mmDrag)return;S.mmOX=e.clientX-mmDS.x;S.mmOY=e.clientY-mmDS.y;if(S.mmData)drawMM(S.mmData);});
+mmCanvas.addEventListener('mouseup',()=>mmDrag=false);
+mmCanvas.addEventListener('mouseleave',()=>mmDrag=false);
+mmCanvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  S.mmScale=Math.max(0.2,Math.min(4,S.mmScale*(e.deltaY>0?0.9:1.1)));
+  if(S.mmData)drawMM(S.mmData);
+},{passive:false});
+
+/* ─── UTILS ─── */
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+let toastT;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),3200);
+}
+window.addEventListener('resize',()=>{
+  if(S.tab==='mm'){resizeMMCanvas();if(S.mmData)drawMM(S.mmData);}
+  if(S.tab==='pdf'&&S.active)renderPage(S.page);
+});
+resizeMMCanvas();
+// auto-connect on load if key is prefilled
+window.addEventListener('load', () => { if(document.getElementById('apiKeyInput').value.trim()) connectAPI(); });
+</script>
+</body>
+</html>
