@@ -1068,7 +1068,16 @@ document.getElementById('btn-connect').addEventListener('click', async () => {
   const btn = document.getElementById('btn-connect');
   btn.textContent = '…'; btn.disabled = true;
   try {
-    await callGemini('Say "OK" in one word.', '', 10);
+    const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
+    const testRes = await fetch(testUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Hi' }] }], generationConfig: { maxOutputTokens: 500 } })
+    });
+    if (!testRes.ok) {
+      const errData = await testRes.json().catch(() => ({}));
+      throw new Error(errData.error?.message || `HTTP ${testRes.status}`);
+    }
     S.connected = true;
     setConnected(true);
     saveState();
